@@ -318,7 +318,7 @@ contract Finance {
 
     }
     
-    // functions of get Information not done yet
+    // functions of get Informations not done yet
 
 
     fallback() external payable{}
