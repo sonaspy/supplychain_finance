@@ -13,11 +13,12 @@ contract Finance {
         uint facevalue; // 面值
         uint expire_time;// 到期时间
         BillState state;
-        bytes32 idOfCR; // 对应的现金收据ID
+        bytes32 idOfCR0; // 对应与银行交互的现金收据ID
+        bytes32 idOfCR1; // 对应与核心企业交互的现金收据ID
         bytes32 idOfparent; 
-        bytes32[] idOfsons; // if it is split, store id of its sons to here.  
-        bytes32[] froms; // 以下三个字段可追溯交易记录。 第一个元素表示发行者或拆分者
-        bytes32[] tos; // 通过数组中最后一个元素确认目前（最后一任）所有者
+        bytes32 idOfson0;   
+        bytes32 idOfson1;   
+        bytes32[] owners; // 者两个个字段可追溯交易记录。 
         uint[] times;
     }
     
@@ -58,7 +59,6 @@ contract Finance {
     //供应商
     struct Supplier {
         bytes32 id;
-        uint8 level; // 供应商层级
         bytes32[] idOfBills;
         bytes32[] idOfRecepits;
         string name;
@@ -131,11 +131,10 @@ contract Finance {
     }
     
     // 新增供应商
-    function addSupplier(bytes32 spid, uint8 _level, string memory _name) onlytheArbitral public returns(bool, string memory) {
+    function addSupplier(bytes32 spid, string memory _name) onlytheArbitral public returns(bool, string memory) {
 
         suppliers.push(Supplier({
             id: spid, 
-            level:_level,
             idOfBills: new bytes32[](0),
             idOfRecepits: new bytes32[](0),
             name: _name
@@ -146,10 +145,10 @@ contract Finance {
     }
     
     // 生成新应收账款凭证
-    function newTradeDebtBill(bytes32 _from, bytes32 _to, bytes32 _issuer, bytes32 _parentid,
+    function newTradeDebtBill(bytes32 _owner, bytes32 _issuer, bytes32 _parentid,
                             uint _init_time, uint _facevalue, uint _expire_time) internal returns(bytes32){
                                 
-        bytes32 _id = keccak256(abi.encodePacked(block.timestamp, _from, _to)); // 使用sha3生成三个值的哈希作为ID
+        bytes32 _id = keccak256(abi.encodePacked(block.timestamp, _owner, _issuer)); // 使用sha3生成三个值的哈希作为ID
 
         Bills.push(TradeDebtBill({
             id: _id,
@@ -157,10 +156,11 @@ contract Finance {
             facevalue: _facevalue,
             expire_time: _expire_time,
             state: BillState.Valid,
-            idOfCR: 0x0,
-            idOfsons: new bytes32[](0),
-            froms: new bytes32[](0),
-            tos: new bytes32[](0),
+            idOfCR0: 0x0,
+            idOfCR1: 0x0,
+            idOfson0: 0x0,
+            idOfson1: 0x0,
+            owners: new bytes32[](0),
             times: new uint[](0),
             idOfparent: _parentid
         }));
@@ -168,8 +168,7 @@ contract Finance {
         TradeDebtBill storage t = Bills[Bills.length - 1];
         mapOfTradeDebtBill[_id] = t;
         t.times.push(_init_time); // 更新历史记录
-        t.froms.push(_from);
-        t.tos.push(_to);
+        t.owners.push(_owner);
 
         return _id;
     }
@@ -197,10 +196,16 @@ contract Finance {
         Enterprise storage e = mapOfEnterprise[epid];
         Supplier storage s = mapOfSupplier[spid];
         
-        require(e.id != 0x0 && s.id != 0x0 && s.level == 1 && e.totalDebt + _facevalue <= e.totalDebtLimit, 
-                "Enterprise doesn't exist / Supplier doesn't exist / Supplier's level doesn't suffice / Insufficient credit line");
+        require(e.id != 0x0 && s.id != 0x0 && e.totalDebt + _facevalue <= e.totalDebtLimit, 
+                "Enterprise doesn't exist / Supplier doesn't exist  / Insufficient credit line");
         
-        bytes32 id = newTradeDebtBill(epid, spid, epid, 0x0, block.timestamp, _facevalue, block.timestamp + tolerate_time);
+        bytes32 id = newTradeDebtBill(epid, epid, 0x0, 0, _facevalue, 0);
+
+        TradeDebtBill storage b = mapOfTradeDebtBill[id];
+
+        b.owners.push(spid);
+        b.times.push(block.timestamp);
+        b.expire_time = b.times[1] + tolerate_time;
         
         e.totalDebt += _facevalue;
         
@@ -226,7 +231,7 @@ contract Finance {
     }
     
     // 应收账款在供应商之间流转
-    function transferBillbetweenSuppliers(bytes32 spid1, bytes32 spid2, bytes32 billid) onlytheArbitral external returns(bool, string memory){
+    function transferBillbetweenSuppliers(bytes32 spid1, bytes32 spid2, bytes32 billid, uint amount) onlytheArbitral external returns(bool, string memory){
         Supplier storage s1 = mapOfSupplier[spid1];
         Supplier storage s2 = mapOfSupplier[spid2];
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
@@ -239,62 +244,29 @@ contract Finance {
 
         require(b.state != BillState.Split, "Bill is Split");
 
-        uint ridx = b.froms.length - 1; // 取最新的历史记录index
-        require(b.tos[ridx] ==  spid1, "Bill doesn't belong to Supplier1");
+        uint ridx = b.owners.length - 1; // 取最新的历史记录index
+        require(b.owners[ridx] ==  spid1, "Bill doesn't belong to Supplier1");
+        require(amount <= b.facevalue, "amount exceeds");
 
-        b.froms.push(spid1); // 更新记录
-        b.tos.push(spid2);
-        b.times.push(block.timestamp);
-        
-        s2.idOfBills.push(billid);
+        if(amount == b.facevalue){
+            b.owners.push(spid2);
+            b.times.push(block.timestamp);
+            s2.idOfBills.push(billid);
+        }else{//拆分
+            bytes32[2] memory newbillids;
 
+            newbillids[0] = newTradeDebtBill(spid2 , b.issuer, billid, block.timestamp, amount, b.expire_time);
+            newbillids[1] = newTradeDebtBill(spid1 , b.issuer, billid, block.timestamp, b.facevalue - amount, b.expire_time);
+
+            b.idOfson0 = newbillids[0];
+            b.idOfson1 = newbillids[1];
+
+            mapOfSupplier[spid1].idOfBills.push(newbillids[1]);
+            mapOfSupplier[spid2].idOfBills.push(newbillids[0]);
+
+            b.state = BillState.Split;
+        }
         return (true, "success");
-    }
-    
-    // 应收账款的拆分
-    function billSplitBySupplier(bytes32 billid, bytes32 spid, uint[] memory ways) onlytheArbitral external returns(bool, string memory, bytes32[10] memory){
-        TradeDebtBill storage b = mapOfTradeDebtBill[billid];
-        Supplier storage s = mapOfSupplier[spid];
-        bytes32[10] memory newbillids; // 拆分后的应收账款ID， 不超过10个
-        
-        require(s.id != 0x0 , "Supplier doesn't exist");  
-        if(!CheckBillState(billid)){
-            return(false, "failed", newbillids);
-        }
-        require(b.state != BillState.Split, "Bill is Split");
-        
-
-        uint ridx = b.froms.length - 1;
-        require(b.tos[ridx] ==  spid && ways.length <= 10, "Bill doesn't belong to Supplier / split way isn't feasible.");
-
-        //检查拆分方案是否合法
-        uint sum = 0;
-        for(uint i = 0; i < ways.length; i++){
-            require(ways[i] > 0, "split way isn't feasible.");
-            sum += ways[i];
-        }
-        require(sum == b.facevalue, "split way isn't feasible.");
-
-        // 使用局部变量， 避免stack too deep
-        uint expire_time = b.expire_time;
-        bytes32 issuer = b.issuer;
-        bytes32 bid = billid;
-        bytes32 sid = spid;
-        bytes32 _from = b.froms[b.froms.length - 1];
-        
-        //开始拆分
-        for(uint i = 0; i < ways.length; i++){
-            uint v = ways[i];
-            newbillids[i] = newTradeDebtBill(_from,sid,issuer,bid,block.timestamp,v,expire_time);
-            b.idOfsons.push(newbillids[i]);
-            s.idOfBills.push(newbillids[i]);
-        }
-
-        b.state = BillState.Split;
-        
-        //返回拆分后的ID
-        return(true, "success", newbillids);
-        
     }
     
     
@@ -314,17 +286,16 @@ contract Finance {
         require(bi.state != BillState.Split, "Bill is Split");
         
         
-        uint ridx = bi.froms.length - 1;
-        require(bi.tos[ridx] ==  spid , "Bill doesn't belong to Supplier ");
+        uint ridx = bi.owners.length - 1;
+        require(bi.owners[ridx] ==  spid , "Bill doesn't belong to Supplier ");
 
         uint amount = bi.facevalue * rate / 1000; // 计算真实可承兑金额 rate为贴现率
 
         //发放现金
         newrepid = newCashRecepit(bankid, spid, billid, amount);
-        bi.froms.push(spid);
-        bi.tos.push(bankid);
+        bi.owners.push(bankid);
         bi.times.push(block.timestamp);
-        bi.idOfCR = newrepid;
+        bi.idOfCR0 = newrepid;
         
         ba.idOfRecepits.push(newrepid);
         ba.idOfBills.push(billid);
@@ -343,14 +314,13 @@ contract Finance {
         require(b.id != 0x0 && e.id != 0x0 && b.issuer == epid, " Bill doesn't exist / Enterprise doesn't exist / Bill is not issued by this Enterprise");
 
         uint amount = b.facevalue;
-        bytes32 debtorid = b.tos[b.tos.length - 1]; // 确认最后一任所有者 为还款对象
+        bytes32 debtorid = b.owners[b.owners.length - 1]; // 确认最后一任所有者 为还款对象
         bytes32 newrepid = newCashRecepit(epid, debtorid, billid, amount);
         
 
-        b.froms.push(debtorid);
-        b.tos.push(0x0);// 发往0地址表示已核销
+        b.owners.push(0x0);// 发往0地址表示已核销
         b.times.push(block.timestamp);
-        b.idOfCR = newrepid;
+        b.idOfCR1 = newrepid;
         b.state = BillState.Done;
         e.idOfRecepits.push(newrepid);
 
@@ -393,19 +363,19 @@ contract Finance {
         return enterprises.length;
     }
         
-    function getBillBasicInfo(bytes32 billid) public view returns(bytes32, bytes32, uint, uint, BillState, bytes32){
+    function getBillBasicInfo(bytes32 billid) public view returns(bytes32, bytes32, uint, uint, BillState, bytes32, bytes32){
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
-        return(b.id, b.issuer, b.facevalue, b.expire_time, b.state, b.idOfCR);
+        return(b.id, b.issuer, b.facevalue, b.expire_time, b.state, b.idOfCR0, b.idOfCR1);
     }
     
-    function getBillHistory(bytes32 billid) public view returns(uint[] memory, bytes32[] memory, bytes32[] memory){
+    function getBillHistory(bytes32 billid) public view returns(uint[] memory, bytes32[] memory){
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
-        return(b.times, b.froms, b.tos);
+        return(b.times, b.owners);
     }
     
-    function getBillSplitInfo(bytes32 billid) public view returns(bytes32, bytes32[]memory){
+    function getBillSplitInfo(bytes32 billid) public view returns(bytes32, bytes32, bytes32){
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
-        return(b.idOfparent, b.idOfsons);
+        return(b.idOfparent, b.idOfson0, b.idOfson1);
     }
     
     function getRecepitInfo(bytes32 repid) public view returns(uint, bytes32, bytes32, bytes32){
@@ -418,9 +388,9 @@ contract Finance {
         return( b.idOfBills.length, b.idOfRecepits.length, b.name);
     }
     
-    function getSupplierBasicInfo(bytes32 id) public view returns(uint, uint, uint, string memory){
+    function getSupplierBasicInfo(bytes32 id) public view returns( uint, uint, string memory){
         Supplier storage s = mapOfSupplier[id];
-        return(s.level, s.idOfBills.length, s.idOfRecepits.length, s.name);
+        return( s.idOfBills.length, s.idOfRecepits.length, s.name);
     }
     
     function getEnterpriseBasicInfo(bytes32 id) public view returns(uint, uint, uint , string memory){
