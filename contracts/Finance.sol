@@ -382,24 +382,24 @@ contract Finance {
         
     function getBillBasicInfo(bytes32 billid) public returns(bytes32, bytes32, uint, uint, BillState, bytes32){
         CheckUpdateBillState(billid);
-        TradeDebtBill memory b = mapOfTradeDebtBill[billid];
+        TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         return(b.id, b.issuer, b.facevalue, b.expire_time, b.state, b.idOfCR);
     }
     
     function getBillHistory(bytes32 billid) public returns(uint[] memory, bytes32[] memory, bytes32[] memory){
         CheckUpdateBillState(billid);
-        TradeDebtBill memory b = mapOfTradeDebtBill[billid];
+        TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         return(b.times, b.froms, b.tos);
     }
     
     function getBillSplitInfo(bytes32 billid) public returns(bytes32, bytes32[]memory){
         CheckUpdateBillState(billid);
-        TradeDebtBill memory b = mapOfTradeDebtBill[billid];
+        TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         return(b.idOfparent, b.idOfsons);
     }
     
     function getRecepitInfo(bytes32 repid) public view returns(uint, bytes32, bytes32, bytes32){
-        CashReceipt memory r = mapOfCashReceipt[repid];
+        CashReceipt storage r = mapOfCashReceipt[repid];
         return(r.amount, r.idOfTDB, r.from, r.to);
     }
     
