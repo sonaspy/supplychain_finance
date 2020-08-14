@@ -3,6 +3,6 @@ const Finance = artifacts.require("Finance");
 module.exports = function (deployer) {
   deployer.deploy(
     Finance,
-    "0xc046ebd630350fe961b55fcfd40f6137e27aeb664292d62af7eecde34a422f25"
+    "0xbe001abf3d32b5738da3c6c8f9e80bf01365739569319ea8a16fc0d8bf0fe72c"
   );
 };
