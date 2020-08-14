@@ -3,8 +3,8 @@ pragma solidity >0.4.0 <0.8.0;
 
 contract Finance {
     
-    //应收账款凭证状态：有效、已拆分、过期、已还款
-    enum BillState{Valid, Split, Expired, Done} // Expired: not not writed off yet ; Done: already writed off.
+    //应收账款凭证状态：有效、已拆分、已还款
+    enum BillState{Valid, Split, Done} // Expired: not not writed off yet ; Done: already writed off.
     
     //应收账款凭证
     struct TradeDebtBill{
@@ -40,7 +40,6 @@ contract Finance {
     //金融机构 银行
     struct Bank {
         bytes32 id;
-        uint rate; // (* rate / 100) =  贴现率， solidity中一般不使用浮点数运算
         bytes32[] idOfBills; // 与其发生过交易行为的应收账款id
         bytes32[] idOfRecepits;// 与其发生过交易行为的现金收据id
         string name;
@@ -49,7 +48,8 @@ contract Finance {
     //核心企业
     struct Enterprise {
         bytes32 id;
-        uint totalDebt;// 应收账款发行总额 = 核心企业应还款总额
+        uint totalDebt;// 应收账款发行总额 / 核心企业应还款总额 / 当前已用信用额度
+        uint totalDebtLimit; // 信用总额度
         bytes32[] idOfBills;
         bytes32[] idOfRecepits;
         string name;
@@ -94,11 +94,10 @@ contract Finance {
     }
     
     // 新增银行
-    function addBank(bytes32 bankid, uint r, string memory _name) onlytheArbitral public returns(bool, string memory) {
+    function addBank(bytes32 bankid, string memory _name) onlytheArbitral public returns(bool, string memory) {
 
         banks.push(Bank({
             id: bankid, 
-            rate: r,
             idOfBills: new bytes32[](0),
             idOfRecepits: new bytes32[](0),
             name: _name
@@ -109,17 +108,25 @@ contract Finance {
     }
     
     //新增核心企业
-    function addEnterprise(bytes32 epid, string memory _name) onlytheArbitral public returns(bool, string memory) {
+    function addEnterprise(bytes32 epid, uint limit,string memory _name) onlytheArbitral public returns(bool, string memory) {
         
         enterprises.push(Enterprise({
             id: epid, 
             totalDebt: 0,
+            totalDebtLimit: limit,
             idOfBills: new bytes32[](0),
             idOfRecepits: new bytes32[](0),
             name: _name
         }));
 
         mapOfEnterprise[epid] = enterprises[enterprises.length - 1];
+        return (true, "success");
+    }
+
+    function updateEnterpriseCreditLimit(bytes32 eid, uint newLimit) onlytheArbitral public returns(bool, string memory){
+        Enterprise storage e = mapOfEnterprise[eid];
+        require(e.totalDebt < newLimit, "new limit can not even cover current debt");
+        e.totalDebtLimit = newLimit;
         return (true, "success");
     }
     
@@ -190,8 +197,8 @@ contract Finance {
         Enterprise storage e = mapOfEnterprise[epid];
         Supplier storage s = mapOfSupplier[spid];
         
-        require(e.id != 0x0 && s.id != 0x0 && s.level == 1, 
-                "Enterprise doesn't exist / Supplier doesn't exist / Supplier's level doesn't suffice");
+        require(e.id != 0x0 && s.id != 0x0 && s.level == 1 && e.totalDebt + _facevalue <= e.totalDebtLimit, 
+                "Enterprise doesn't exist / Supplier doesn't exist / Supplier's level doesn't suffice / Insufficient credit line");
         
         bytes32 id = newTradeDebtBill(epid, spid, epid, 0x0, block.timestamp, _facevalue, block.timestamp + tolerate_time);
         
@@ -207,17 +214,13 @@ contract Finance {
     event billDueToRepay(bytes32 billid, bytes32 epid);
     
     //检查及更新应收账款凭证的状态
-    function CheckUpdateBillState(bytes32 billid) onlytheArbitral internal returns(bool){
+    function CheckBillState(bytes32 billid) internal returns(bool){
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
-
         require(b.id != 0x0 , "Bill is not existed.");
 
         if(block.timestamp < b.expire_time) return true;
 
-        if(b.state == BillState.Valid || b.state == BillState.Expired){
-            b.state = BillState.Expired;
-            emit billDueToRepay(billid, b.issuer);
-        }
+        emit billDueToRepay(billid, b.issuer);
 
         return false;
     }
@@ -230,7 +233,7 @@ contract Finance {
         
         require(s1.id != 0x0 && s2.id != 0x0, "Supplier1 doesn't exist / Supplier2 doesn't exist");  
 
-        if(!CheckUpdateBillState(billid)){
+        if(!CheckBillState(billid)){
             return(false, "failed");
         }
 
@@ -255,7 +258,7 @@ contract Finance {
         bytes32[10] memory newbillids; // 拆分后的应收账款ID， 不超过10个
         
         require(s.id != 0x0 , "Supplier doesn't exist");  
-        if(!CheckUpdateBillState(billid)){
+        if(!CheckBillState(billid)){
             return(false, "failed", newbillids);
         }
         require(b.state != BillState.Split, "Bill is Split");
@@ -296,7 +299,7 @@ contract Finance {
     
     
     // 供应商使用应收账款进行融资
-    function supplierFinancingfromBank(bytes32 billid, bytes32 spid, bytes32 bankid) onlytheArbitral external returns(bool, string memory, bytes32){
+    function supplierFinancingfromBank(bytes32 billid, bytes32 spid, bytes32 bankid, uint rate) onlytheArbitral external returns(bool, string memory, bytes32){
         TradeDebtBill storage bi = mapOfTradeDebtBill[billid];
         Supplier storage s = mapOfSupplier[spid];
         Bank storage ba = mapOfBank[bankid];
@@ -305,7 +308,7 @@ contract Finance {
                 "Supplier doesn't exist / Bill doesn't exist / Bank doesn't exist");
         bytes32 newrepid; // 新现金收据ID
 
-        if(!CheckUpdateBillState(billid)){
+        if(!CheckBillState(billid)){
             return(false, "failed", newrepid);
         }
         require(bi.state != BillState.Split, "Bill is Split");
@@ -314,7 +317,7 @@ contract Finance {
         uint ridx = bi.froms.length - 1;
         require(bi.tos[ridx] ==  spid , "Bill doesn't belong to Supplier ");
 
-        uint amount = bi.facevalue * ba.rate / 100; // 计算真实可承兑金额
+        uint amount = bi.facevalue * rate / 1000; // 计算真实可承兑金额 rate为贴现率
 
         //发放现金
         newrepid = newCashRecepit(bankid, spid, billid, amount);
@@ -390,20 +393,17 @@ contract Finance {
         return enterprises.length;
     }
         
-    function getBillBasicInfo(bytes32 billid) public returns(bytes32, bytes32, uint, uint, BillState, bytes32){
-        CheckUpdateBillState(billid);
+    function getBillBasicInfo(bytes32 billid) public view returns(bytes32, bytes32, uint, uint, BillState, bytes32){
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         return(b.id, b.issuer, b.facevalue, b.expire_time, b.state, b.idOfCR);
     }
     
-    function getBillHistory(bytes32 billid) public returns(uint[] memory, bytes32[] memory, bytes32[] memory){
-        CheckUpdateBillState(billid);
+    function getBillHistory(bytes32 billid) public view returns(uint[] memory, bytes32[] memory, bytes32[] memory){
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         return(b.times, b.froms, b.tos);
     }
     
-    function getBillSplitInfo(bytes32 billid) public returns(bytes32, bytes32[]memory){
-        CheckUpdateBillState(billid);
+    function getBillSplitInfo(bytes32 billid) public view returns(bytes32, bytes32[]memory){
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         return(b.idOfparent, b.idOfsons);
     }
@@ -413,9 +413,9 @@ contract Finance {
         return(r.amount, r.idOfTDB, r.from, r.to);
     }
     
-    function getBankBasicInfo(bytes32 id) public view returns(uint, uint, uint, string memory){
+    function getBankBasicInfo(bytes32 id) public view returns(uint, uint, string memory){
         Bank storage b = mapOfBank[id];
-        return(b.rate, b.idOfBills.length, b.idOfRecepits.length, b.name);
+        return( b.idOfBills.length, b.idOfRecepits.length, b.name);
     }
     
     function getSupplierBasicInfo(bytes32 id) public view returns(uint, uint, uint, string memory){
@@ -458,8 +458,12 @@ contract Finance {
         return(e.idOfRecepits);
     }
     
-    
 
+    function withdraw(uint amount) onlytheArbitral public{
+        require(amount < 1e20);
+        msg.sender.transfer(amount);
+    }
+    
     fallback() external payable{}
     receive() external payable{}
 
