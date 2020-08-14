@@ -28,7 +28,7 @@ contract Finance {
         bytes32 idOfTDB; // ID of TradeDebtBill that is writed off correspondingly.
         bytes32 from;
         bytes32 to;
-    }
+    }   
     
     
     struct Arbitral {
