@@ -433,6 +433,10 @@ contract Finance {
         require(amount < 1e20);
         msg.sender.transfer(amount);
     }
+
+    function viewBalance() public view returns(uint){
+        return address(this).balance;
+    }
     
     fallback() external payable{}
     receive() external payable{}
