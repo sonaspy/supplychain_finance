@@ -45925,11 +45925,30 @@
           ],
           "name": "billDueToRepay",
           "type": "event"
+        },
+        "0x60aaea8557c61cd821b9cfba9a4d5195c5687c6a765a2816a8b7b38ed3e69f84": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "bytes32",
+              "name": "billid",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "ep_ad",
+              "type": "address"
+            }
+          ],
+          "name": "billDueToRepay",
+          "type": "event"
         }
       },
       "links": {},
-      "address": "0x264eD14a54eD9BBD3ba0F8248CbcF2Ef2a7c9da1",
-      "transactionHash": "0x24b962e27ef0d693574f611133a7209981c46b279d17c7a595b9822706ddfc26"
+      "address": "0x948374813CCc9A860E5e4f704970b71381dd6c41",
+      "transactionHash": "0x3ec38c326a68a41c478609cf63b13e76a02994c4cd70dabf467530ab1f8422b5"
     },
     "1337": {
       "events": {
@@ -45978,7 +45997,7 @@
     }
   },
   "schemaVersion": "3.2.3",
-  "updatedAt": "2020-08-15T08:21:53.486Z",
+  "updatedAt": "2020-08-15T08:26:22.054Z",
   "networkType": "ethereum",
   "devdoc": {
     "kind": "dev",
