@@ -4,30 +4,34 @@ pragma solidity >0.4.0 <0.8.0;
 contract Finance {
     
     //应收账款凭证状态：有效、已拆分、已还款
-    enum BillState{Valid, Split, Done} // Expired: not not writed off yet ; Done: already writed off.
-    
+    enum BillState{Valid, Split, Done}    
     //应收账款凭证
     struct TradeDebtBill{
-        bytes32 id;
+        bytes32 id; // id由sha3生成
         address issuer; // 发行者 核心企业
         uint facevalue; // 面值
         uint expire_time;// 到期时间
-        BillState state;
+        BillState state; // 状态
         bytes32 idOfCR0; // 对应与银行交互的现金收据ID
         bytes32 idOfCR1; // 对应与核心企业交互的现金收据ID
-        bytes32 idOfparent; 
-        bytes32 idOfson0;   
+        bytes32 idOfparent; // 拆分前的父ID
+        bytes32 idOfson0;   // 拆分后的两个子ID
         bytes32 idOfson1;   
         address[] owners; // 以下两个个字段可追溯交易记录。 
-        uint[] times;
+        uint[] times; // 首次发行时第一个值为0，第二个值为now
+		/*
+		Owners: a -> b -> c -> d -> e
+		Times:  0     1     2.   3.     4
+				a->b的时间点为1，b->c时间点为2
+        */
     }
     
     // 现金收据，使用应收账款凭证融资或核销后生成
     struct CashReceipt{
-        bytes32 id;
-        uint amount;
+        bytes32 id; // sha3生成id
+        uint amount; // 金额数
         bytes32 idOfTDB; // 对应发生核销或融资行为的应收账款凭证ID
-        address from;
+        address from; 
         address to;
         uint time;
     }   
@@ -43,7 +47,7 @@ contract Finance {
     //核心企业
     struct Enterprise {
         address _address;
-        uint totalDebt;// 应收账款发行总额 / 核心企业应还款总额 / 当前已用信用额度
+        uint totalDebt;// 应收账款发行总额 / 核心企业应还款总额 / 当前已用额度
         uint totalDebtLimit; // 信用总额度
         bytes32[] idOfBills;
         bytes32[] idOfRecepits;
@@ -67,7 +71,6 @@ contract Finance {
     mapping(address => Supplier) mapOfSupplier;
     
     TradeDebtBill[]  Bills;
-    // TradeDebtBill[] public doneBills;
     CashReceipt[]  Recepits;
     Enterprise[]  enterprises;
     Bank[]  banks;
@@ -78,14 +81,15 @@ contract Finance {
         Arbitral_address =  msg.sender;
     }
     
-    // 写操作调用只允许仲裁者（管理员）的地址发起
+    // 添加成员只允许仲裁者（管理员）的地址发起
     modifier onlytheArbitral{
         require(msg.sender == Arbitral_address, "Only arbitral can operate");
         _;
     }
     
     // 新增银行
-    function addBank(address bk_ad, string memory _name) onlytheArbitral public returns(bool, string memory) {
+    function addBank(address bk_ad, string memory _name) 
+            onlytheArbitral public returns(bool, string memory) {
 
         banks.push(Bank({
             _address: bk_ad, 
@@ -99,7 +103,8 @@ contract Finance {
     }
     
     //新增核心企业
-    function addEnterprise(address ep_ad, uint limit,string memory _name) onlytheArbitral public returns(bool, string memory) {
+    function addEnterprise(address ep_ad, uint limit,string memory _name) 
+                            onlytheArbitral public returns(bool, string memory) {
         
         enterprises.push(Enterprise({
             _address: ep_ad, 
@@ -114,7 +119,8 @@ contract Finance {
         return (true, "success");
     }
 
-    function updateEnterpriseCreditLimit(address ep_ad, uint newLimit) onlytheArbitral public returns(bool, string memory){
+    function updateEnterpriseCreditLimit(address ep_ad, uint newLimit) 
+                onlytheArbitral public returns(bool, string memory){
         Enterprise storage e = mapOfEnterprise[ep_ad];
         require(e.totalDebt < newLimit, "new limit can not even cover current debt");
         e.totalDebtLimit = newLimit;
@@ -122,7 +128,8 @@ contract Finance {
     }
     
     // 新增供应商
-    function addSupplier(address sp_ad, string memory _name) onlytheArbitral public returns(bool, string memory) {
+    function addSupplier(address sp_ad, string memory _name) 
+            onlytheArbitral public returns(bool, string memory) {
 
         suppliers.push(Supplier({
             _address: sp_ad, 
@@ -136,8 +143,8 @@ contract Finance {
     }
     
     // 生成新应收账款凭证
-    function newTradeDebtBill(address _owner, address _issuer, bytes32 _parentid,
-                            uint _init_time, uint _facevalue, uint _expire_time) internal returns(bytes32){
+    function newTradeDebtBill(address _owner, address _issuer, bytes32 _parentid,uint _init_time,
+                                uint _facevalue, uint _expire_time) internal returns(bytes32){
                                 
         bytes32 _id = keccak256(abi.encodePacked(block.timestamp, _owner, _issuer)); // 使用sha3生成三个值的哈希作为ID
 
@@ -165,7 +172,8 @@ contract Finance {
     }
     
     // 生成新现金收据
-    function newCashRecepit(address _from, address _to, bytes32 _idOfTDB, uint _amount) internal returns(bytes32){
+    function newCashRecepit(address _from, address _to, bytes32 _idOfTDB,
+                            uint _amount) internal returns(bytes32){
         bytes32 _id = keccak256(abi.encodePacked(block.timestamp, _from, _to));
         
         Recepits.push(CashReceipt({
@@ -183,13 +191,14 @@ contract Finance {
     }
     
     // 发行应收账款凭证
-    function issueTradeDebtBill(address ep_ad, address sp_ad, uint tolerate_time, uint _facevalue) external returns(bool, bytes32, string memory){
+    function issueTradeDebtBill(address ep_ad, address sp_ad, uint tolerate_time, uint _facevalue) 
+                                external returns(bool, bytes32, string memory){
         Enterprise storage e = mapOfEnterprise[ep_ad];
         Supplier storage s = mapOfSupplier[sp_ad];
         
         require(e._address != address(0x0) && s._address != address(0x0) && e.totalDebt + _facevalue <= e.totalDebtLimit, 
                 "Enterprise doesn't exist / Supplier doesn't exist  / Insufficient credit line");
-        require(msg.sender == ep_ad, "permission denied!");
+        require(msg.sender == ep_ad, "permission denied!"); // 限制调用者的权限 只有地址符合才允许调用
         
         bytes32 id = newTradeDebtBill(ep_ad, ep_ad, 0x0, 0, _facevalue, 0);
 
@@ -224,22 +233,23 @@ contract Finance {
     }
     
     // 应收账款在供应商之间流转
-    function transferBillbetweenSuppliers(address sp_ad1, address sp_ad2, bytes32 billid, uint amount)  external returns(bool, string memory){
+    function transferBillbetweenSuppliers(address sp_ad1, address sp_ad2, bytes32 billid, uint amount) 
+                                            external returns(bool, string memory){
         Supplier storage s1 = mapOfSupplier[sp_ad1];
         Supplier storage s2 = mapOfSupplier[sp_ad2];
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         
-        require(s1._address != address(0x0) && s2._address != address(0x0), "Supplier1 doesn't exist / Supplier2 doesn't exist");  
+        require(s1._address != address(0x0) && s2._address != address(0x0), 
+                "Supplier1 doesn't exist / Supplier2 doesn't exist");  
 
         if(!CheckBillState(billid)){
             return(false, "failed");
         }
 
-
         uint ridx = b.owners.length - 1; // 取最新的历史记录index
         require(b.owners[ridx] ==  sp_ad1, "Bill doesn't belong to Supplier1");
         require(amount <= b.facevalue, "amount exceeds");
-        require(msg.sender == sp_ad1, "permission denied!");
+        require(msg.sender == sp_ad1, "permission denied!");// 限制调用者的权限 只有地址符合才允许调用
 
         if(amount == b.facevalue){
             b.owners.push(sp_ad2);
@@ -268,7 +278,8 @@ contract Finance {
     
     
     // 供应商使用应收账款进行融资
-    function supplierFinancingfromBank(bytes32 billid, address sp_ad, address bank_ad, uint rate) onlytheArbitral external returns(bool, string memory, bytes32){
+    function supplierFinancingfromBank(bytes32 billid, address sp_ad, address bank_ad, uint rate) 
+                                        external returns(bool, string memory, bytes32){
         TradeDebtBill storage bi = mapOfTradeDebtBill[billid];
         Supplier storage s = mapOfSupplier[sp_ad];
         Bank storage ba = mapOfBank[bank_ad];
@@ -283,8 +294,7 @@ contract Finance {
         
         uint ridx = bi.owners.length - 1;
         require(bi.owners[ridx] ==  sp_ad , "Bill doesn't belong to Supplier ");
-        require(msg.sender == sp_ad, "permission denied!");
-
+        require(msg.sender == sp_ad, "permission denied!");// 限制调用者的权限 只有地址符合才允许调用
 
         uint amount = bi.facevalue * rate / 1000; // 计算真实可承兑金额 rate为贴现率
 
@@ -302,14 +312,16 @@ contract Finance {
 
     }
     
-    // 核心企业进行核销操作（可在过期前操作，所有者尽早拿到现金）
-    function enterpriseRepay(bytes32 billid, address ep_ad) onlytheArbitral external returns(bool, string memory, bytes32){
+    // 核心企业进行核销还款操作（可在过期前操作，所有者尽早拿到现金）(涉及到应收凭证的流动和现金收据的创建)
+    function enterpriseRepay(bytes32 billid, address ep_ad) onlytheArbitral 
+                            external returns(bool, string memory, bytes32){
 
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         Enterprise storage e = mapOfEnterprise[ep_ad];
 
-        require(b.id != 0x0 && e._address != address(0x0) && b.issuer == ep_ad, " Bill doesn't exist / Enterprise doesn't exist / Bill is not issued by this Enterprise");
-        require(msg.sender == ep_ad, "permission denied!");
+        require(b.id != 0x0 && e._address != address(0x0) && b.issuer == ep_ad, 
+                " Bill doesn't exist / Enterprise doesn't exist / Bill is not issued by this Enterprise");
+        require(msg.sender == ep_ad, "permission denied!");// 限制调用者的权限 只有地址符合才允许调用
 
         uint amount = b.facevalue;
         address debtorid = b.owners[b.owners.length - 1]; // 确认最后一任所有者 为还款对象
@@ -361,7 +373,8 @@ contract Finance {
         return enterprises.length;
     }
         
-    function getBillBasicInfo(bytes32 billid) public view returns(bytes32, address, uint, uint, BillState, bytes32, bytes32){
+    function getBillBasicInfo(bytes32 billid) public view 
+            returns(bytes32, address, uint, uint, BillState, bytes32, bytes32){
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         return(b.id, b.issuer, b.facevalue, b.expire_time, b.state, b.idOfCR0, b.idOfCR1);
     }
@@ -391,7 +404,8 @@ contract Finance {
         return( s.idOfBills.length, s.idOfRecepits.length, s.name);
     }
     
-    function getEnterpriseBasicInfo(address _ad) public view returns(uint, uint, uint , string memory){
+    function getEnterpriseBasicInfo(address _ad) public view 
+                        returns(uint, uint, uint , string memory){
         Enterprise storage e = mapOfEnterprise[_ad];
         return(e.totalDebt, e.idOfBills.length, e.idOfRecepits.length, e.name);
     }
@@ -426,7 +440,6 @@ contract Finance {
         return(e.idOfRecepits);
     }
     
-
     function withdraw(uint amount) onlytheArbitral public{
         require(amount < 1e20);
         msg.sender.transfer(amount);
