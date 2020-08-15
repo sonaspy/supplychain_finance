@@ -333,11 +333,6 @@ contract Finance {
         b.idOfCR1 = newrepid;
         b.state = BillState.Done;
         e.idOfRecepits.push(newrepid);
-
-        // 若此应收账款是拆分后生成的子应收，未曾被收录，则加入核心企业的应收账款id数组中。
-        if(b.idOfparent != 0x0){
-            e.idOfBills.push(billid);
-        }
         
         //还款对象为供应商或银行，现金收据id加入此对象的数组中
         if(mapOfSupplier[debtorid]._address != address(0x0)) {
