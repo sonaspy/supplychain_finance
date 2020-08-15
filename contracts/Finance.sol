@@ -222,6 +222,7 @@ contract Finance {
     function CheckBillState(bytes32 billid) internal returns(bool){
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         require(b.id != 0x0 , "Bill is not existed.");
+        if(b.state == BillState.Split || b.state == BillState.Done) return false;
 
         if(block.timestamp < b.expire_time) return true;
 
@@ -242,7 +243,6 @@ contract Finance {
             return(false, "failed");
         }
 
-        require(b.state != BillState.Split, "Bill is Split");
 
         uint ridx = b.owners.length - 1; // 取最新的历史记录index
         require(b.owners[ridx] ==  spid1, "Bill doesn't belong to Supplier1");
@@ -263,6 +263,10 @@ contract Finance {
 
             mapOfSupplier[spid1].idOfBills.push(newbillids[1]);
             mapOfSupplier[spid2].idOfBills.push(newbillids[0]);
+    
+            Enterprise storage e = mapOfEnterprise[b.issuer];
+            e.idOfBills.push(newbillids[0]);
+            e.idOfBills.push(newbillids[1]);
 
             b.state = BillState.Split;
         }
@@ -283,7 +287,6 @@ contract Finance {
         if(!CheckBillState(billid)){
             return(false, "failed", newrepid);
         }
-        require(bi.state != BillState.Split, "Bill is Split");
         
         
         uint ridx = bi.owners.length - 1;
