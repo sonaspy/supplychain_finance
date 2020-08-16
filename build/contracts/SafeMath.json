@@ -1,16 +1,16 @@
 {
   "contractName": "SafeMath",
   "abi": [],
-  "metadata": "{\"compiler\":{\"version\":\"0.7.0+commit.9e61f92b\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"details\":\"Unsigned math operations with safety checks that revert on error\",\"kind\":\"dev\",\"methods\":{},\"title\":\"SafeMath\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"/Users/newguo/projects/blockchain-supplychainFinance/supplychain_finance/contracts/SafeMath.sol\":\"SafeMath\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"/Users/newguo/projects/blockchain-supplychainFinance/supplychain_finance/contracts/SafeMath.sol\":{\"keccak256\":\"0x3e9a0ed8d2d59bfd19ab54b6086bfd2591aa2a494b063172cecc824d84a9d51d\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://f8a32fad3df8cfee35c487fe671e5dd03c41291796a19823c98f7b9a40efe687\",\"dweb:/ipfs/QmfFGJtp6tVpciicAoZFV7p7YPYQ8hdSDGEgaAgN1truin\"]}},\"version\":1}",
-  "bytecode": "0x60566023600b82828239805160001a607314601657fe5b30600052607381538281f3fe73000000000000000000000000000000000000000030146080604052600080fdfea264697066735822122063074a6eb2768331c1409bc3eb998c49ffc869f729e4d1645bb336f22bed7ade64736f6c63430007000033",
-  "deployedBytecode": "0x73000000000000000000000000000000000000000030146080604052600080fdfea264697066735822122063074a6eb2768331c1409bc3eb998c49ffc869f729e4d1645bb336f22bed7ade64736f6c63430007000033",
+  "metadata": "{\"compiler\":{\"version\":\"0.7.0+commit.9e61f92b\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"details\":\"Unsigned math operations with safety checks that revert on error\",\"kind\":\"dev\",\"methods\":{},\"title\":\"SafeMath\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"/Users/newguo/projects/blockchain-supplychainFinance/finance_contract/contracts/SafeMath.sol\":\"SafeMath\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"/Users/newguo/projects/blockchain-supplychainFinance/finance_contract/contracts/SafeMath.sol\":{\"keccak256\":\"0x3e9a0ed8d2d59bfd19ab54b6086bfd2591aa2a494b063172cecc824d84a9d51d\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://f8a32fad3df8cfee35c487fe671e5dd03c41291796a19823c98f7b9a40efe687\",\"dweb:/ipfs/QmfFGJtp6tVpciicAoZFV7p7YPYQ8hdSDGEgaAgN1truin\"]}},\"version\":1}",
+  "bytecode": "0x60566023600b82828239805160001a607314601657fe5b30600052607381538281f3fe73000000000000000000000000000000000000000030146080604052600080fdfea2646970667358221220208d2e7a1132a9d5edecdcc439f4ec961c365db403d645583d2957e2097378e864736f6c63430007000033",
+  "deployedBytecode": "0x73000000000000000000000000000000000000000030146080604052600080fdfea2646970667358221220208d2e7a1132a9d5edecdcc439f4ec961c365db403d645583d2957e2097378e864736f6c63430007000033",
   "immutableReferences": {},
   "sourceMap": "168:1737:2:-:0;;;;;;;;;;;;;;;;;;;;;;;;;",
   "deployedSourceMap": "168:1737:2:-:0;;;;;;;;",
   "source": "// SPDX-License-Identifier: MIT\npragma solidity >=0.4.22 <0.8.0;\n\n\n/**\n * @title SafeMath\n * @dev Unsigned math operations with safety checks that revert on error\n */\n\nlibrary SafeMath {\n    /**\n     * @dev Multiplies two unsigned integers, reverts on overflow.\n     */\n    function mul(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Gas optimization: this is cheaper than requiring 'a' not being zero, but the\n        // benefit is lost if 'b' is also tested.\n        // See: https://github.com/OpenZeppelin/openzeppelin-solidity/pull/522\n        if (a == 0) {\n            return 0;\n        }\n\n        uint256 c = a * b;\n        require(c / a == b);\n\n        return c;\n    }\n\n    /**\n     * @dev Integer division of two unsigned integers truncating the quotient, reverts on division by zero.\n     */\n    function div(uint256 a, uint256 b) internal pure returns (uint256) {\n        // Solidity only automatically asserts when dividing by 0\n        require(b > 0);\n        uint256 c = a / b;\n        // assert(a == b * c + a % b); // There is no case in which this doesn't hold\n\n        return c;\n    }\n\n    /**\n     * @dev Subtracts two unsigned integers, reverts on overflow (i.e. if subtrahend is greater than minuend).\n     */\n    function sub(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b <= a);\n        uint256 c = a - b;\n\n        return c;\n    }\n\n    /**\n     * @dev Adds two unsigned integers, reverts on overflow.\n     */\n    function add(uint256 a, uint256 b) internal pure returns (uint256) {\n        uint256 c = a + b;\n        require(c >= a);\n\n        return c;\n    }\n\n    /**\n     * @dev Divides two unsigned integers and returns the remainder (unsigned integer modulo),\n     * reverts when dividing by zero.\n     */\n    function mod(uint256 a, uint256 b) internal pure returns (uint256) {\n        require(b != 0);\n        return a % b;\n    }\n}\n",
-  "sourcePath": "/Users/newguo/projects/blockchain-supplychainFinance/supplychain_finance/contracts/SafeMath.sol",
+  "sourcePath": "/Users/newguo/projects/blockchain-supplychainFinance/finance_contract/contracts/SafeMath.sol",
   "ast": {
-    "absolutePath": "/Users/newguo/projects/blockchain-supplychainFinance/supplychain_finance/contracts/SafeMath.sol",
+    "absolutePath": "/Users/newguo/projects/blockchain-supplychainFinance/finance_contract/contracts/SafeMath.sol",
     "exportedSymbols": {
       "SafeMath": [
         1833
@@ -1724,7 +1724,7 @@
     "src": "32:1874:2"
   },
   "legacyAST": {
-    "absolutePath": "/Users/newguo/projects/blockchain-supplychainFinance/supplychain_finance/contracts/SafeMath.sol",
+    "absolutePath": "/Users/newguo/projects/blockchain-supplychainFinance/finance_contract/contracts/SafeMath.sol",
     "exportedSymbols": {
       "SafeMath": [
         1833
@@ -3443,7 +3443,7 @@
   },
   "networks": {},
   "schemaVersion": "3.2.3",
-  "updatedAt": "2020-08-15T16:48:33.312Z",
+  "updatedAt": "2020-08-16T02:55:03.406Z",
   "devdoc": {
     "details": "Unsigned math operations with safety checks that revert on error",
     "kind": "dev",
