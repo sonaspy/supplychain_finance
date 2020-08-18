@@ -436,12 +436,12 @@ contract Finance {
     }
     
     function withdraw(uint256 amount) onlytheArbitral public{
-        require(amount < 1e20);
+        require(amount < 1e25);
         msg.sender.transfer(amount);
     }
 
-    function viewBalance() public view returns(uint256){
-        return address(this).balance;
+    function viewBalanceOf(address addr) public view returns(uint256){
+        return addr.balance;
     }
     
     fallback() external payable{}
