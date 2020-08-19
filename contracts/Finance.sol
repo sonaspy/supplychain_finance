@@ -120,8 +120,10 @@ contract Finance {
     }
 
     function updateEnterpriseCreditLimit(address ep_ad, uint256 newLimit) 
-                onlytheArbitral public returns(bool, string memory){
+                public returns(bool, string memory){
         Enterprise storage e = mapOfEnterprise[ep_ad];
+        Bank storage b = mapOfBank[msg.sender];
+        require(b._address != address(0x0) && e._address != address(0x0), "Bank doesn't exist / Enterprise doesn't exist" );
         require(e.totalDebt < newLimit, "new limit can not even cover current debt");
         e.totalDebtLimit = newLimit;
         return (true, "success");
