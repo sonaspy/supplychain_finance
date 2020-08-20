@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >0.4.0 <0.8.0;
 
+import "./SafeMath.sol";
+
+
+
 contract Finance {
     
+    // 合约安全性隐患：重入攻击、溢出攻击
+
+    using SafeMath for uint256;
+
     //应收账款凭证状态：有效、已拆分、已还款
     enum BillState{Valid, Split, Done}    
     //应收账款凭证
@@ -25,6 +33,7 @@ contract Finance {
 				a->b的时间点为1，b->c时间点为2
         */
     }
+
     
     // 现金收据，使用应收账款凭证融资或核销后生成
     struct CashReceipt{
@@ -123,7 +132,8 @@ contract Finance {
                 public returns(bool, string memory){
         Enterprise storage e = mapOfEnterprise[ep_ad];
         Bank storage b = mapOfBank[msg.sender];
-        require(b._address != address(0x0) && e._address != address(0x0), "Bank doesn't exist / Enterprise doesn't exist" );
+        require(b._address != address(0x0), "Bank doesn't exist" );
+        require(e._address != address(0x0),  "Enterprise doesn't exist");
         require(e.totalDebt < newLimit, "new limit can not even cover current debt");
         e.totalDebtLimit = newLimit;
         return (true, "success");
@@ -198,8 +208,9 @@ contract Finance {
         Enterprise storage e = mapOfEnterprise[ep_ad];
         Supplier storage s = mapOfSupplier[sp_ad];
         
-        require(e._address != address(0x0) && s._address != address(0x0) && e.totalDebt + _facevalue <= e.totalDebtLimit, 
-                "Enterprise doesn't exist / Supplier doesn't exist  / Insufficient credit line");
+        require(e._address != address(0x0), "Enterprise doesn't exist ");
+        require(e.totalDebt.add(_facevalue) <= e.totalDebtLimit,"Insufficient credit line");
+        require(s._address != address(0x0), "Supplier doesn't exist");
         require(msg.sender == ep_ad, "permission denied!"); // 限制调用者的权限 只有地址符合才允许调用
         
         bytes32 id = newTradeDebtBill(ep_ad, ep_ad, 0x0, 0, _facevalue, 0);
@@ -208,9 +219,9 @@ contract Finance {
 
         b.owners.push(sp_ad);
         b.times.push(block.timestamp);
-        b.expire_time = b.times[1] + tolerate_time;
+        b.expire_time = b.times[1].add(tolerate_time);
         
-        e.totalDebt += _facevalue;
+        e.totalDebt = e.totalDebt.add(_facevalue);
         
         e.idOfBills.push(id);
         s.idOfBills.push(id);
@@ -241,8 +252,8 @@ contract Finance {
         Supplier storage s2 = mapOfSupplier[sp_ad2];
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         
-        require(s1._address != address(0x0) && s2._address != address(0x0), 
-                "Supplier1 doesn't exist / Supplier2 doesn't exist");  
+        require(s1._address != address(0x0), "Supplier1 doesn't exist");  
+        require(s2._address != address(0x0), "Supplier2 doesn't exist");
 
         bytes32[2] memory newbillids;
 
@@ -261,7 +272,7 @@ contract Finance {
             s2.idOfBills.push(billid);
         }else{//拆分
             newbillids[0] = newTradeDebtBill(sp_ad2 , b.issuer, billid, block.timestamp, amount, b.expire_time);
-            newbillids[1] = newTradeDebtBill(sp_ad1 , b.issuer, billid, block.timestamp, b.facevalue - amount, b.expire_time);
+            newbillids[1] = newTradeDebtBill(sp_ad1 , b.issuer, billid, block.timestamp, b.facevalue.sub(amount), b.expire_time);
 
             b.idOfson0 = newbillids[0];
             b.idOfson1 = newbillids[1];
@@ -286,8 +297,9 @@ contract Finance {
         Supplier storage s = mapOfSupplier[sp_ad];
         Bank storage ba = mapOfBank[bank_ad];
 
-        require(s._address != address(0x0) && bi.id != 0x0 && ba._address != address(0x0), 
-                "Supplier doesn't exist / Bill doesn't exist / Bank doesn't exist");
+        require(s._address != address(0x0), "Supplier doesn't exist");
+        require(bi.id != 0x0, "Bill doesn't exist");
+        require(ba._address != address(0x0), "Bank doesn't exist");
         bytes32 newrepid; // 新现金收据ID
 
         if(!CheckBillState(billid)){
@@ -298,7 +310,7 @@ contract Finance {
         require(bi.owners[ridx] ==  sp_ad , "Bill doesn't belong to Supplier ");
         require(msg.sender == sp_ad, "permission denied!");// 限制调用者的权限 只有地址符合才允许调用
 
-        uint256 amount = bi.facevalue * rate / 1000; // 计算真实可承兑金额 rate为贴现率
+        uint256 amount = bi.facevalue.mul(rate).div(1000); // 计算真实可承兑金额 rate为贴现率
 
         //发放现金
         newrepid = newCashRecepit(bank_ad, sp_ad, billid, amount);
@@ -321,8 +333,9 @@ contract Finance {
         TradeDebtBill storage b = mapOfTradeDebtBill[billid];
         Enterprise storage e = mapOfEnterprise[ep_ad];
 
-        require(b.id != 0x0 && e._address != address(0x0) && b.issuer == ep_ad, 
-                " Bill doesn't exist / Enterprise doesn't exist / Bill is not issued by this Enterprise");
+        require(b.id != 0x0, "Bill doesn't exist");
+        require(e._address != address(0x0), "Enterprise doesn't exist");
+        require(b.issuer == ep_ad, "Bill is not issued by this Enterprise");
         require(msg.sender == ep_ad, "permission denied!");// 限制调用者的权限 只有地址符合才允许调用
 
         uint256 amount = b.facevalue;
@@ -344,7 +357,7 @@ contract Finance {
         }
         
         require(amount <= e.totalDebt, "Accounting errors.");
-        e.totalDebt -= amount;
+        e.totalDebt = e.totalDebt.sub(amount);
 
         return(true, "success", newrepid);
     }
