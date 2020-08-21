@@ -98,7 +98,7 @@ contract Finance {
     
     // 新增银行
     function addBank(address bk_ad, string memory _name) 
-            onlytheArbitral public returns(bool, string memory) {
+            onlytheArbitral external returns(bool, string memory) {
 
         banks.push(Bank({
             _address: bk_ad, 
@@ -113,7 +113,7 @@ contract Finance {
     
     //新增核心企业
     function addEnterprise(address ep_ad, uint256 limit,string memory _name) 
-                            onlytheArbitral public returns(bool, string memory) {
+                            onlytheArbitral external returns(bool, string memory) {
         
         enterprises.push(Enterprise({
             _address: ep_ad, 
@@ -128,10 +128,11 @@ contract Finance {
         return (true, "success");
     }
 
-    function updateEnterpriseCreditLimit(address ep_ad, uint256 newLimit) 
-                public returns(bool, string memory){
+    function updateEnterpriseCreditLimit(address ba_ad, address ep_ad, uint256 newLimit) 
+                external returns(bool, string memory){
         Enterprise storage e = mapOfEnterprise[ep_ad];
-        Bank storage b = mapOfBank[msg.sender];
+        Bank storage b = mapOfBank[ba_ad];
+        require(msg.sender == ba_ad, "permission denied!");
         require(b._address != address(0x0), "Bank doesn't exist" );
         require(e._address != address(0x0),  "Enterprise doesn't exist");
         require(e.totalDebt < newLimit, "new limit can not even cover current debt");
@@ -141,7 +142,7 @@ contract Finance {
     
     // 新增供应商
     function addSupplier(address sp_ad, string memory _name) 
-            onlytheArbitral public returns(bool, string memory) {
+            onlytheArbitral external returns(bool, string memory) {
 
         suppliers.push(Supplier({
             _address: sp_ad, 
