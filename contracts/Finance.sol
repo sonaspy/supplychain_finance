@@ -43,6 +43,7 @@ contract Finance {
         address from; 
         address to;
         uint256 time;
+        uint256 rate;
     }   
     
     //金融机构 银行
@@ -186,7 +187,7 @@ contract Finance {
     
     // 生成新现金收据
     function newCashRecepit(address _from, address _to, bytes32 _idOfTDB,
-                            uint256 _amount) internal returns(bytes32){
+                            uint256 _amount, uint256 _rate) internal returns(bytes32){
         bytes32 _id = keccak256(abi.encodePacked(block.timestamp, _from, _to));
         
         Recepits.push(CashReceipt({
@@ -195,7 +196,8 @@ contract Finance {
             amount: _amount,
             from: _from,
             to: _to,
-            time: block.timestamp
+            time: block.timestamp,
+            rate: _rate
         }));
         
         CashReceipt storage c = Recepits[Recepits.length - 1];
@@ -292,7 +294,7 @@ contract Finance {
     
     
     // 供应商使用应收账款进行融资
-    function supplierFinancingfromBank(bytes32 billid, address sp_ad, address bank_ad, uint16 rate) 
+    function supplierFinancingfromBank(bytes32 billid, address sp_ad, address bank_ad, uint256 rate) 
                                         external returns(bool, string memory, bytes32){
         TradeDebtBill storage bi = mapOfTradeDebtBill[billid];
         Supplier storage s = mapOfSupplier[sp_ad];
@@ -314,7 +316,7 @@ contract Finance {
         uint256 amount = bi.facevalue.mul(rate).div(1000); // 计算真实可承兑金额 rate为贴现率
 
         //发放现金
-        newrepid = newCashRecepit(bank_ad, sp_ad, billid, amount);
+        newrepid = newCashRecepit(bank_ad, sp_ad, billid, amount, rate);
         bi.owners.push(bank_ad);
         bi.times.push(block.timestamp);
         bi.idOfCR0 = newrepid;
@@ -341,7 +343,7 @@ contract Finance {
 
         uint256 amount = b.facevalue;
         address debtorid = b.owners[b.owners.length - 1]; // 确认最后一任所有者 为还款对象
-        bytes32 newrepid = newCashRecepit(ep_ad, debtorid, billid, amount);
+        bytes32 newrepid = newCashRecepit(ep_ad, debtorid, billid, amount, 1000);
         
 
         b.owners.push(address(0x0));// 发往0地址表示已核销
